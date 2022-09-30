@@ -1,4 +1,5 @@
 from calendar import WEDNESDAY
+import requests
 from fastapi import Body, FastAPI, Query
 import numpy as np
 from enum import Enum
@@ -8,10 +9,18 @@ from datetime import datetime, time, timedelta, date
 from typing import Union
 from uuid import UUID
 
+customers_url = 'http://localhost:8080/clients/?skip=0&limit=1000'
+items_url = 'http://localhost:8080/items/?skip=0&limit=1000'
 
-items = pd.read_csv("api/data/items.csv")
+customers_req = requests.get(customers_url)
+customers_json = customers_req.json()
+customers = pd.DataFrame(customers_json)
+
+items_req = requests.get(items_url)
+items_json = items_req.json()
+items = pd.DataFrame(items_json)
+
 ventes = pd.read_csv("transactions.csv")
-customers = pd.read_csv("api/data/clients.csv")
 
 customers.rename(columns={"id": "client_id"}, inplace=True)
 ventes['time'] = ventes['time'].apply(pd.to_datetime)
@@ -31,6 +40,8 @@ app = FastAPI()
 
 @app.get("/top_ventes")
 async def NTop_Sales(top: int = Query (..., ge = 0, le = 1000, description="Top N des objets les plus vendus")):
+    """Cette fonction, permet d'obtenir les objets les plus vendus"""
+    
     most_sell = ventes.groupby(['item_id'])['quantity'].sum().reset_index(name='total_sold').sort_values(by='total_sold', ascending=False)
     total_ventes = items.merge(most_sell, how='inner', on='item_id')
     total_ventes.sort_values('total_sold', ascending =False, inplace = True)
@@ -41,6 +52,8 @@ async def NTop_Sales(top: int = Query (..., ge = 0, le = 1000, description="Top 
 
 @app.get("/top_customers/")
 async def NTop_Customers(top: int = Query (..., ge = 0, le = 1000, description="Top N des clients fréquentant le plus le magasin")):
+    """Cette fonction permet d'obtenir le top des clients qui fréquentent le plus le magasin"""
+
     ventes_clients = ventes.copy()
     list_client = customers.copy()
     ventes_clients['time'] = pd.to_datetime(ventes_clients['time']).dt.date
@@ -57,6 +70,8 @@ async def dailysales(
     *,
     day : DayNames,
     time : int = Query (..., ge = 0, le = 24, description="Entrez une heure")):
+    """Cette fonction permet de voir les ventes d'un jour et d'une heure choisie"""
+
     daily_sales =  ventes.copy()
     daily_sales['Dates'] = pd.to_datetime(daily_sales['time']).dt.date.apply(pd.to_datetime).dt.day_name()
     daily_sales['Time'] = pd.to_datetime(daily_sales['time']).dt.time
@@ -73,6 +88,7 @@ async def frequentation(
     *,
     date_start : str = Query (..., description = "Date du début Min = 2020-01-01 / Max = 2020-12-31"),
     date_end : str = Query (..., description = "Date de fin Min = 2020-01-01 / Max = 2020-12-31")):
+    """Cette fonction permet d'obtenir la tranche d'âge des clients ayant le plus fréquenté le magasin dans une période temporelle"""
 
     ventes_clients = ventes.copy()
     list_client = customers.copy()
@@ -110,6 +126,7 @@ async def total_spent(
     age_end : int = Query(..., description = "Âge max de la tranche"),
     date_start : str = Query (..., description = "Date du début Min = 2020-01-01 / Max = 2020-12-31"),
     date_end : str = Query (..., description = "Date de fin Min = 2020-01-01 / Max = 2020-12-31")):
+    """Cette fonction nous permet d'obtenir la somme totale des transactions sur une période donnée en fonction de plusieurs filtres."""
 
     ventes_total = ventes.copy()
     prix_items = items.copy()
